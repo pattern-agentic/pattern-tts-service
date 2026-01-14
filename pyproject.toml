@@ -1,0 +1,76 @@
+[tool.poetry]
+name = "pattern-tts-service"
+version = "1.0.0"
+description = "Pattern TTS Service - OpenAI-Compatible Text-to-Speech API using Kokoro TTS"
+authors = ["Pattern Agentic Team <team@pattern-agentic.io>"]
+readme = "README.md"
+packages = [{include = "pattern_tts", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# Core FastAPI dependencies
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.34.0"}
+pydantic = "^2.10.0"
+pydantic-settings = "^2.7.0"
+python-dotenv = "^1.0.0"
+
+# ML/DL Base
+numpy = "^1.26.0"
+scipy = "^1.14.0"
+torch = "^2.6.0"
+
+# Kokoro TTS
+kokoro = "^0.9.2"
+misaki = {extras = ["en", "ja", "ko", "zh"], version = "^0.9.3"}
+
+# Audio processing
+soundfile = "^0.13.0"
+pydub = "^0.25.1"
+mutagen = "^1.47.0"
+av = "^14.2.0"
+
+# Text processing
+phonemizer-fork = "^3.3.2"
+espeakng-loader = "^0.2.4"
+spacy = "^3.8.5"
+inflect = "^7.5.0"
+text2num = "^2.5.1"
+tiktoken = "^0.8.0"
+regex = "^2024.11.0"
+
+# Utilities
+aiofiles = "^23.2.0"
+loguru = "^0.7.3"
+pyyaml = "^6.0"
+requests = "^2.32.0"
+psutil = "^6.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.0"
+pytest-asyncio = "^0.24.0"
+pytest-cov = "^6.0.0"
+httpx = "^0.26.0"
+black = "^24.0"
+ruff = "^0.3"
+
+[tool.poetry.scripts]
+pattern-tts = "pattern_tts.api.main:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
