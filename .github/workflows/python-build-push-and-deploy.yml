@@ -1,0 +1,28 @@
+name: Merge to main CICD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  merge-to-main-cicd:
+    permissions:
+      contents: write
+      id-token: write
+    uses: pattern-agentic/github-workflows-cicd/.github/workflows/python-build-publish-and-deploy.yml@main
+    with:
+      uv-build: false
+      codeartifact-publish: false
+      helmchart-publish: true
+      deploy-to-dev: true
+      ecr-repo-name: "pattern-tts-service"
+      service-name: "pattern-tts-service"
+      cluster-app-name: "pattern-agentic"
+      helmchart-repo-name: "helm/pattern-tts-service"
+      helmchart-path-in-project: "helm/pattern-tts"
+      shared-services-ecr-role: "GithubAccess-pattern-tts-service-shared-services"
+      vault-role: "github-actions-pattern-agentic-pattern-tts-service"
+      calling-commit-message: "${{ github.event.head_commit.message }}"
+

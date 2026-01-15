@@ -1,0 +1,23 @@
+name: PR validations
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-version-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify version is incremented
+        uses: pattern-agentic/github-workflows-cicd/actions/python/verify-pyproject-version-increment@main
+      - name: Verify version is incremented (Helm)
+        uses: pattern-agentic/github-workflows-cicd/actions/helm/verify-helmchart-version-increment@main
+      - name: Validate helmchart
+        uses: pattern-agentic/github-workflows-cicd/actions/helm/validate@main
+        with:
+          helm-args: '--set image.tag=0.0.1'
