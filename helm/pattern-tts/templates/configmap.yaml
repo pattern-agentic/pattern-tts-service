@@ -7,30 +7,5 @@ metadata:
   labels:
     {{- include "pattern-tts.labels" . | nindent 4 }}
 data:
-  # Service configuration
-  service.env: |
-    TTS_PORT={{ .Values.tts.service.targetPort }}
-    TTS_HOST=0.0.0.0
-    TTS_LOG_LEVEL=INFO
-    TTS_ENVIRONMENT={{ .Values.global.environment }}
-
-  # Model configuration
-  model.env: |
-    TTS_MODEL_PATH={{ .Values.tts.config.modelPath }}
-    USE_GPU=false
-    TTS_MAX_TEXT_LENGTH={{ .Values.tts.config.maxTextLength }}
-    TTS_TEMP_DIR=/tmp/tts
-
-  # Health check configuration
-  health.yaml: |
-    health:
-      path: /health
-      port: {{ .Values.tts.service.targetPort }}
-      timeout: 5s
-      interval: 10s
-    readiness:
-      path: /health
-      port: {{ .Values.tts.service.targetPort }}
-      timeout: 3s
-      interval: 5s
+  {{- include "pattern-tts.configmap.data" . | nindent 2 }}
 {{- end }}

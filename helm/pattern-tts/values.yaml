@@ -1,29 +1,54 @@
 # Pattern TTS Helm Chart - Default Values
-# OpenAI-compatible Text-to-Speech using Kokoro
+
+image:
+  repository: 643681787675.dkr.ecr.us-west-2.amazonaws.com/pattern-tts-service
+  tag: ""  # Required
+  pullPolicy: IfNotPresent
+
+paDeploy:
+  env: dev  # REQUIRED
+
+vault:
+  agentInject: "true"
+  agentPrePopulateOnly: "false"
+  roleWithoutEnvPrefix: "pa-cluster-service-pattern-agentic-pattern-tts-service"
+  secretWithoutEnvPrefix: "pa-cluster/services/pattern-tts-service"
+
+serviceAccount:
+  create: true
+  name: pattern-tts-service
+  automount: true
+  annotations: {}
+
+config:
+  API_TITLE: Pattern TTS Service
+  API_DESCRIPTION: OpenAI-compatible Text-to-Speech API using Kokoro TTS
+  LOG_LEVEL: INFO
+  USE_GPU: false
+  DOT_ENV: /vault/secrets/service
+  MODEL_DIR: /app/models/v1_0
+  VOICES_DIR: /app/voices/v1_0
+  DEFAULT_VOICE: af_heart
+  SAMPLE_RATE: 24000
+  TARGET_MIN_TOKENS: 175
+  TARGET_MAX_TOKENS: 250
+  ABSOLUTE_MAX_TOKENS: 450
+  ADVANCED_TEXT_NORMALIZATION: true
+  VOICE_WEIGHT_NORMALIZATION: true
+  GAP_TRIM_MS: 1
+  DYNAMIC_GAP_TRIM_PADDING_MS: 410
+  DYNAMIC_GAP_TRIM_PADDING_CHAR_MULTIPLIER: '{".": 1.0, "!": 0.9, "?": 1.0, ",": 0.8}'
+  CORS_ORIGINS: '["*"]'
+  CORS_ENABLED: true
+  DOWNLOAD_MODEL: true
 
 # Global settings
 global:
-  environment: dev
   namespace: pattern-agentic
-
-# Image registry (populated by Terraform ECR outputs)
-imageRegistry:
-  url: "" # Set to ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-  pullPolicy: IfNotPresent
-
-# Service Account (IRSA annotations from Terraform outputs)
-serviceAccount:
-  create: true
-  name: tts-service
-  annotations: {}
-    # eks.amazonaws.com/role-arn: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ENV}-pattern-tts-service-irsa"
 
 # Pattern TTS Service
 tts:
   enabled: true
-  image:
-    repository: "pattern-tts-service"
-    tag: "latest"
   replicas: 2
   resources:
     requests:
@@ -33,48 +58,15 @@ tts:
       cpu: "4000m"
       memory: "8Gi"
 
-  # Service configuration (Oracle: DNS-based discovery)
   service:
-    name: pattern-tts-service  # Kubernetes DNS name
-    type: ClusterIP            # Internal only
-    port: 80                   # Standard HTTP port
-    targetPort: 8205           # Container port
+    name: pattern-tts-service
+    type: ClusterIP
+    port: 80
+    targetPort: 8205
 
-  # Model storage configuration (Oracle: S3 migration path documented)
   modelSource:
-    type: local  # Current: local volumes
-    # Future S3 migration path:
-    # type: s3
-    # bucket: pattern-models-prod
-    # path: tts/kokoro/v1.0/
-    # region: us-west-2
+    type: local
 
-  # Kokoro TTS configuration
-  config:
-    modelPath: /models/kokoro-v1.0
-    maxTextLength: 5000
-    device: "cpu"
-
-  # Environment variables
-  env:
-    - name: TTS_ENVIRONMENT
-      value: "dev"
-    - name: TTS_LOG_LEVEL
-      value: "INFO"
-    - name: TTS_PORT
-      value: "8205"
-    - name: TTS_HOST
-      value: "0.0.0.0"
-    - name: TTS_MODEL_PATH
-      value: "/models/kokoro-v1.0"
-    - name: USE_GPU
-      value: "false"
-    - name: TTS_MAX_TEXT_LENGTH
-      value: "5000"
-    - name: TTS_TEMP_DIR
-      value: "/tmp/tts"
-
-  # Health checks
   healthCheck:
     enabled: true
     path: /health
@@ -101,23 +93,19 @@ autoscaling:
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
 
-# Persistent Volume for Kokoro Models (Option B - Model Kiosk Pattern)
+# Persistent Volume for Kokoro Models
 persistence:
   enabled: true
   size: 20Gi
-  storageClass: gp3-xfs  # AWS EBS gp3 with XFS filesystem (Pattern Agentic standard)
+  storageClass: gp3-xfs
   accessMode: ReadWriteOnce
-  volumeName: ""  # Leave empty for dynamic provisioning
-  # Model download configuration (init container)
+  volumeName: ""
   modelDownload:
     enabled: true
     source: "https://github.com/hexgrad/kokoro/releases/download/v1.0"
     models:
       - kokoro-v0_19.pth
       - voices.json
-    # Alternative: S3 source (future Model Kiosk integration)
-    # s3Bucket: pattern-models
-    # s3Prefix: tts/kokoro/v1.0/
 
 # Secrets (AWS Secrets Manager CSI Driver)
 secrets:
@@ -125,7 +113,7 @@ secrets:
   provider: aws-secrets-manager
   region: us-west-2
 
-# Pod Security Context (Oracle: non-root, read-only FS)
+# Pod Security Context
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 1000
@@ -141,7 +129,7 @@ securityContext:
       - ALL
   readOnlyRootFilesystem: true
 
-# Network Policies (optional)
+# Network Policies
 networkPolicy:
   enabled: false
   policyTypes:
@@ -161,18 +149,14 @@ serviceMonitor:
   scrapeTimeout: 10s
   labels: {}
 
-# Ingress (optional - for external access)
+# Ingress
 ingress:
   enabled: false
   className: "nginx"
   annotations: {}
-    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
   hosts:
     - host: tts.pattern-agentic.example.com
       paths:
         - path: /
           pathType: Prefix
   tls: []
-  #  - secretName: tts-tls
-  #    hosts:
-  #      - tts.pattern-agentic.example.com

@@ -19,32 +19,35 @@ spec:
         {{- include "pattern-tts.selectorLabels" . | nindent 8 }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "{{ .Values.vault.agentPrePopulateOnly }}"
+        vault.hashicorp.com/role: "{{ .Values.paDeploy.env }}-{{ .Values.vault.roleWithoutEnvPrefix }}"
+        vault.hashicorp.com/agent-inject-secret-service: "secret/data/{{ .Values.paDeploy.env }}/{{ .Values.vault.secretWithoutEnvPrefix }}"
+        vault.hashicorp.com/agent-inject-template-service: |
+          {{`{{- with secret "`}}secret/data/{{ .Values.paDeploy.env }}/{{ .Values.vault.secretWithoutEnvPrefix }}{{`" -}}`}}
+          {{`{{- range $k, $v := .Data.data }}`}}
+          {{`{{ $k }}={{ $v }}`}}
+          {{`{{- end }}`}}
+          {{`{{- end }}`}}
     spec:
       serviceAccountName: {{ include "pattern-tts.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
       - name: tts-service
         image: {{ include "pattern-tts.image" . }}
-        imagePullPolicy: {{ .Values.imageRegistry.pullPolicy }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
         securityContext:
           {{- toYaml .Values.securityContext | nindent 10 }}
         ports:
         - name: http
           containerPort: {{ .Values.tts.service.targetPort }}
           protocol: TCP
-        env:
-        {{- range .Values.tts.env }}
-        - name: {{ .name }}
-          value: {{ .value | quote }}
-        {{- end }}
-        {{- if .Values.secrets.enabled }}
-        - name: TTS_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.secrets.apiKey.secretName }}
-              key: {{ .Values.secrets.apiKey.secretKey }}
-        {{- end }}
+        envFrom:
+        - configMapRef:
+            name: {{ include "pattern-tts.fullname" . }}-config
+            optional: false
         volumeMounts:
         - name: config
           mountPath: /app/config

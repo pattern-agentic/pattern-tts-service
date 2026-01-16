@@ -69,8 +69,7 @@ async def lifespan(app: FastAPI):
     boundary = "=" * 60
     startup_msg = f"""
 {boundary}
-    Pattern TTS Service
-    Port: {settings.port}
+    {settings.app_name} v{settings.app_version}
     Model: {model_name}
     Device: {device}
 {boundary}
@@ -80,8 +79,6 @@ async def lifespan(app: FastAPI):
         if torch.cuda.is_available():
             startup_msg += f"\nGPU: {torch.cuda.get_device_name(0)}"
     startup_msg += f"\nVoices: {voice_count} voice packs loaded"
-    startup_msg += f"\n\nOpenAI API: http://{settings.host}:{settings.port}/v1/audio/speech"
-    startup_msg += f"\nDocs: http://{settings.host}:{settings.port}/docs"
     startup_msg += f"\n{boundary}\n"
 
     logger.info(startup_msg)
@@ -94,9 +91,9 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Pattern TTS Service",
-    description="OpenAI-compatible Text-to-Speech API using Kokoro TTS",
-    version="1.0.0",
+    title=settings.api_title,
+    description=settings.api_description,
+    version=settings.app_version,
     lifespan=lifespan,
     openapi_url="/openapi.json",
 )
@@ -116,9 +113,8 @@ async def health_check():
     """Health check endpoint for Kubernetes probes"""
     return {
         "status": "healthy",
-        "service": "pattern-tts-service",
-        "version": "1.0.0",
-        "port": settings.port,
+        "service": settings.app_name,
+        "version": settings.app_version,
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -134,7 +130,7 @@ async def readiness_check():
 
     return {
         "status": "ready",
-        "service": "pattern-tts-service",
+        "service": settings.app_name,
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -144,10 +140,14 @@ from .routers.openai_compatible import router as openai_router
 app.include_router(openai_router)
 
 
-if __name__ == "__main__":
+def main():
     uvicorn.run(
         "pattern_tts.api.main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=True,
+        host="0.0.0.0",
+        port=8205,
+        reload=False,
     )
+
+
+if __name__ == "__main__":
+    main()
