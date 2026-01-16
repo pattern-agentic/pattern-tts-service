@@ -1,0 +1,62 @@
+# Pattern TTS - Development Environment Values
+
+global:
+  environment: dev
+  namespace: pattern-agentic
+
+# Image configuration (slim image for PV architecture)
+imageRegistry:
+  url: "085016484061.dkr.ecr.us-west-2.amazonaws.com"
+  pullPolicy: Always
+
+tts:
+  image:
+    repository: "pattern-tts-service"
+    tag: "v1.0.2"
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "2000m"
+      memory: "4Gi"
+
+  env:
+    - name: TTS_ENVIRONMENT
+      value: "dev"
+    - name: TTS_LOG_LEVEL
+      value: "DEBUG"
+    - name: TTS_PORT
+      value: "8205"
+    - name: TTS_HOST
+      value: "0.0.0.0"
+    - name: TTS_MODEL_PATH
+      value: "/models/kokoro-v1.0"
+    - name: USE_GPU
+      value: "false"
+    - name: TTS_MAX_TEXT_LENGTH
+      value: "5000"
+    - name: TTS_TEMP_DIR
+      value: "/tmp/tts"
+
+autoscaling:
+  enabled: false
+
+# Persistent Volume (dev size for testing)
+persistence:
+  enabled: true
+  size: 20Gi  # Current PVC size (cannot shrink)
+  storageClass: gp3-xfs
+  modelDownload:
+    enabled: false  # Models already uploaded to PVC
+
+secrets:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+serviceMonitor:
+  enabled: false

@@ -1,0 +1,178 @@
+# Pattern TTS Helm Chart - Default Values
+# OpenAI-compatible Text-to-Speech using Kokoro
+
+# Global settings
+global:
+  environment: dev
+  namespace: pattern-agentic
+
+# Image registry (populated by Terraform ECR outputs)
+imageRegistry:
+  url: "" # Set to ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+  pullPolicy: IfNotPresent
+
+# Service Account (IRSA annotations from Terraform outputs)
+serviceAccount:
+  create: true
+  name: tts-service
+  annotations: {}
+    # eks.amazonaws.com/role-arn: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ENV}-pattern-tts-service-irsa"
+
+# Pattern TTS Service
+tts:
+  enabled: true
+  image:
+    repository: "pattern-tts-service"
+    tag: "latest"
+  replicas: 2
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "4Gi"
+    limits:
+      cpu: "4000m"
+      memory: "8Gi"
+
+  # Service configuration (Oracle: DNS-based discovery)
+  service:
+    name: pattern-tts-service  # Kubernetes DNS name
+    type: ClusterIP            # Internal only
+    port: 80                   # Standard HTTP port
+    targetPort: 8205           # Container port
+
+  # Model storage configuration (Oracle: S3 migration path documented)
+  modelSource:
+    type: local  # Current: local volumes
+    # Future S3 migration path:
+    # type: s3
+    # bucket: pattern-models-prod
+    # path: tts/kokoro/v1.0/
+    # region: us-west-2
+
+  # Kokoro TTS configuration
+  config:
+    modelPath: /models/kokoro-v1.0
+    maxTextLength: 5000
+    device: "cpu"
+
+  # Environment variables
+  env:
+    - name: TTS_ENVIRONMENT
+      value: "dev"
+    - name: TTS_LOG_LEVEL
+      value: "INFO"
+    - name: TTS_PORT
+      value: "8205"
+    - name: TTS_HOST
+      value: "0.0.0.0"
+    - name: TTS_MODEL_PATH
+      value: "/models/kokoro-v1.0"
+    - name: USE_GPU
+      value: "false"
+    - name: TTS_MAX_TEXT_LENGTH
+      value: "5000"
+    - name: TTS_TEMP_DIR
+      value: "/tmp/tts"
+
+  # Health checks
+  healthCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
+
+  readinessCheck:
+    enabled: true
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    successThreshold: 1
+    failureThreshold: 3
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Persistent Volume for Kokoro Models (Option B - Model Kiosk Pattern)
+persistence:
+  enabled: true
+  size: 20Gi
+  storageClass: gp3-xfs  # AWS EBS gp3 with XFS filesystem (Pattern Agentic standard)
+  accessMode: ReadWriteOnce
+  volumeName: ""  # Leave empty for dynamic provisioning
+  # Model download configuration (init container)
+  modelDownload:
+    enabled: true
+    source: "https://github.com/hexgrad/kokoro/releases/download/v1.0"
+    models:
+      - kokoro-v0_19.pth
+      - voices.json
+    # Alternative: S3 source (future Model Kiosk integration)
+    # s3Bucket: pattern-models
+    # s3Prefix: tts/kokoro/v1.0/
+
+# Secrets (AWS Secrets Manager CSI Driver)
+secrets:
+  enabled: false
+  provider: aws-secrets-manager
+  region: us-west-2
+
+# Pod Security Context (Oracle: non-root, read-only FS)
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container Security Context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# Network Policies (optional)
+networkPolicy:
+  enabled: false
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+      - podSelector: {}
+  egress:
+    - to:
+      - podSelector: {}
+
+# Service Monitor (Prometheus Operator)
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Ingress (optional - for external access)
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: tts.pattern-agentic.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: tts-tls
+  #    hosts:
+  #      - tts.pattern-agentic.example.com

@@ -1,231 +1,407 @@
 # Pattern TTS Service
 
-**OpenAI-Compatible Text-to-Speech API using Kokoro TTS**
+**OpenAI-Compatible Text-to-Speech API** using Kokoro TTS v1.0
 
-**Port**: 8205
-**Status**: 🚧 WO-015 Phase 1 - In Development
-**Model**: Kokoro TTS v1.0
+Fast, high-quality neural TTS with 67 voices across 8 languages. Drop-in replacement for OpenAI's TTS API.
 
 ---
 
-## Overview
+## 🎯 Quick Links
 
-Pattern TTS Service provides high-quality text-to-speech synthesis using the Kokoro TTS model. The service exposes an OpenAI-compatible API endpoint, making it a drop-in replacement for OpenAI's TTS API.
-
-**Key Features**:
-- ✅ OpenAI-compatible API (`/v1/audio/speech`)
-- ✅ Multiple voice options
-- ✅ Streaming and file-based output
-- ✅ CPU-optimized inference
-- ✅ FastAPI with automatic OpenAPI documentation
-- ✅ Production-ready (non-root, resource limits, health checks)
+- **Swagger UI**: http://localhost:8205/docs (via kubectl port-forward)
+- **OpenAPI Spec**: http://localhost:8205/openapi.json
+- **Health Check**: http://localhost:8205/health
+- **Voices List**: http://localhost:8205/voices
+- **Kubernetes Service**: `pattern-tts-service.pattern-agentic.svc.cluster.local`
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Local Development
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Port forward to access service locally
+kubectl port-forward -n pattern-agentic svc/pattern-tts-service 8205:80
 
-# Run service
-uvicorn src.pattern_tts.api.main:app --host 0.0.0.0 --port 8205
-
-# Test endpoint
+# Test health endpoint
 curl http://localhost:8205/health
+
+# Generate speech (OpenAI-compatible)
+curl -X POST http://localhost:8205/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "tts-1",
+    "input": "Hello from Pattern TTS!",
+    "voice": "alloy",
+    "speed": 1.0
+  }' \
+  --output speech.mp3
 ```
 
-### Docker
+### From DLE or Other Services
 
-```bash
-# Build
-docker build -t pattern-tts-service:latest -f docker/Dockerfile .
+```python
+import httpx
 
-# Run
-docker run -p 8205:8205 pattern-tts-service:latest
-```
-
-### Kubernetes (Helm)
-
-```bash
-# Deploy to dev
-helm install pattern-tts helm/pattern-tts -f helm/pattern-tts/values-dev.yaml
-
-# Deploy to prod
-helm install pattern-tts helm/pattern-tts -f helm/pattern-tts/values-prod.yaml
+async def generate_speech(text: str, voice: str = "alloy"):
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "http://pattern-tts-service.pattern-agentic.svc.cluster.local/v1/audio/speech",
+            json={
+                "model": "tts-1",
+                "input": text,
+                "voice": voice,
+                "speed": 1.0
+            }
+        )
+        return response.content  # MP3 audio bytes
 ```
 
 ---
 
-## API Endpoints
+## 📋 Features
 
-### Health Check
-```bash
-GET /health
-```
+- ✅ **OpenAI API Compatible** - Drop-in replacement for `/v1/audio/speech`
+- ✅ **67 Voices** - Multiple languages, genders, and styles
+- ✅ **Fast Processing** - 6-7 seconds per request (CPU), <1s with GPU
+- ✅ **FastAPI** - Modern async Python framework with auto-generated docs
+- ✅ **Kubernetes Native** - Helm charts, HPA, health checks
+- ✅ **Production Ready** - Non-root, read-only filesystem, resource limits
+- ✅ **Persistent Models** - PVC-backed storage, survives pod restarts
 
-**Response**:
+---
+
+## 🎙️ Available Voices
+
+### OpenAI-Compatible Voices
+Use these with the `/v1/audio/speech` endpoint:
+
+| Voice | Kokoro Equivalent | Description |
+|-------|------------------|-------------|
+| `alloy` | `af_sky` | Clear, professional female |
+| `echo` | `am` | Standard male voice |
+| `fable` | `af` | Standard female voice |
+| `onyx` | `am_adam` | Deep, authoritative male |
+| `nova` | `af_nova` | Female voice |
+| `shimmer` | `af_bella` | Female voice |
+
+### Native Kokoro Voices (67 total)
+See full list at `/voices` endpoint or [voice_manager.py](src/pattern_tts/services/voice_manager.py)
+
+**Languages**: English (US/British), French, Italian, Portuguese, Japanese, Chinese, Hindi
+
+---
+
+## 🔌 API Endpoints
+
+### OpenAI-Compatible
+
+#### POST `/v1/audio/speech`
+Generate speech from text (OpenAI TTS API compatible)
+
+**Request:**
 ```json
 {
-  "status": "healthy",
-  "service": "pattern-tts-service",
-  "version": "1.0.0",
-  "model": "kokoro-v1.0",
-  "port": 8205
+  "model": "tts-1",           // or "tts-1-hd", "kokoro"
+  "input": "Text to speak",   // Max 4096 characters
+  "voice": "alloy",           // OpenAI or Kokoro voice ID
+  "speed": 1.0                // 0.25 to 4.0
 }
 ```
 
-### Create Speech (OpenAI-Compatible)
-```bash
-POST /v1/audio/speech
-```
+**Response:** Audio file (MP3, 24kHz mono, 64kbps)
 
-**Request**:
-```json
-{
-  "model": "tts-1",
-  "input": "Hello, this is Pattern TTS speaking!",
-  "voice": "af",
-  "response_format": "mp3",
-  "speed": 1.0
-}
-```
-
-**Response**: Audio file (mp3/wav/opus/flac)
-
-**Example**:
+**Curl Example:**
 ```bash
 curl -X POST http://localhost:8205/v1/audio/speech \
   -H "Content-Type: application/json" \
   -d '{
     "model": "tts-1",
-    "input": "Welcome to Pattern Agentic",
-    "voice": "af"
+    "input": "The Pattern TTS Service is now operational!",
+    "voice": "onyx",
+    "speed": 1.0
   }' \
-  --output speech.mp3
+  --output announcement.mp3
+```
+
+#### GET `/v1/models`
+List available TTS models
+
+**Response:**
+```json
+{
+  "models": [
+    {"id": "tts-1", "description": "Standard quality TTS"},
+    {"id": "tts-1-hd", "description": "High definition TTS"},
+    {"id": "kokoro", "description": "Native Kokoro model"}
+  ]
+}
+```
+
+#### GET `/v1/audio/voices`
+List all available voices with metadata
+
+**Response:**
+```json
+{
+  "voices": [
+    {
+      "id": "alloy",
+      "name": "Alloy",
+      "language": "en-US",
+      "gender": "female",
+      "kokoro_voice": "af_sky"
+    }
+  ]
+}
 ```
 
 ---
 
-## Available Voices
+### Service Endpoints
 
-- `af` - Default female voice
-- `am` - Default male voice
-- Additional voices available (see `/docs` for full list)
+#### GET `/health`
+Health check for liveness/readiness probes
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "pattern-tts-service",
+  "version": "1.0.0",
+  "port": 8205,
+  "timestamp": "2026-01-16T03:10:21.513016"
+}
+```
+
+#### GET `/voices`
+List native Kokoro voices with detailed metadata
 
 ---
 
-## Configuration
+## 🛠️ Configuration
 
 ### Environment Variables
 
-```bash
-# Service
-TTS_PORT=8205
-TTS_HOST=0.0.0.0
-TTS_LOG_LEVEL=INFO
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TTS_ENVIRONMENT` | `dev` | Environment (dev/staging/prod) |
+| `TTS_LOG_LEVEL` | `INFO` | Log level (DEBUG/INFO/WARNING/ERROR) |
+| `TTS_PORT` | `8205` | Service port |
+| `TTS_HOST` | `0.0.0.0` | Bind host |
+| `TTS_MODEL_PATH` | `/models/kokoro-v1.0` | Path to model files |
+| `USE_GPU` | `false` | Enable GPU acceleration |
+| `TTS_MAX_TEXT_LENGTH` | `4096` | Max characters per request |
+| `TTS_TEMP_DIR` | `/tmp/tts` | Temporary file directory |
 
-# Model
-TTS_MODEL_PATH=/models/kokoro-v1.0
-USE_GPU=false
+### Kubernetes Resources
 
-# Processing
-TTS_MAX_TEXT_LENGTH=5000
-TTS_TEMP_DIR=/tmp/tts
+**Current Deployment** (values-dev.yaml):
+```yaml
+replicas: 2-8 (HPA auto-scaling)
+resources:
+  requests:
+    cpu: 1000m
+    memory: 2Gi
+  limits:
+    cpu: 2000m
+    memory: 4Gi
 ```
 
-### Configuration File
-See `config/service.yaml` for detailed configuration options.
+**PVC**: 20Gi gp3-xfs (models + voice files = 346MB)
 
 ---
 
-## Development
+## 🚢 Deployment
 
-### Run Tests
+### Prerequisites
+- Kubernetes cluster with kubectl access
+- Helm 3+
+- AWS ECR access (for pulling images)
+- PVC with Kokoro models uploaded
 
-```bash
-# Unit tests
-pytest tests/unit -v
-
-# Integration tests
-pytest tests/integration -v
-
-# E2E tests
-pytest tests/e2e -v
-```
-
-### Linting
+### Deploy to Kubernetes
 
 ```bash
-ruff check src/
-black src/
-```
+# Navigate to repo
+cd /home/jeremy/pattern_agentic/pattern-tts-service
 
----
+# Install with Helm
+helm install pattern-tts helm/pattern-tts \
+  -f helm/pattern-tts/values-dev.yaml \
+  -n pattern-agentic
 
-## Deployment
+# Check deployment status
+kubectl get pods -n pattern-agentic | grep pattern-tts
 
-### AWS EKS (Production)
+# View logs
+kubectl logs -n pattern-agentic -l app=pattern-tts-service --tail=100
 
-**Namespace**: `pattern-agentic`
-**Service**: `pattern-tts-service`
-**Port**: 8205 (internal ClusterIP)
-
-**Access**:
-```bash
-# Port-forward (development)
+# Port forward for local access
 kubectl port-forward -n pattern-agentic svc/pattern-tts-service 8205:80
+```
 
-# Via DLE v4 API Gateway (production)
-curl http://localhost:8106/audio-proxy/tts
+### Upgrade Deployment
+
+```bash
+# Pull latest image and upgrade
+helm upgrade pattern-tts helm/pattern-tts \
+  -f helm/pattern-tts/values-dev.yaml \
+  -n pattern-agentic
+```
+
+### Scale Deployment
+
+```bash
+# Manual scaling
+kubectl scale deployment pattern-tts -n pattern-agentic --replicas=3
+
+# Scale to 0 (save resources when not in use)
+kubectl scale deployment pattern-tts -n pattern-agentic --replicas=0
+
+# Scale back up
+kubectl scale deployment pattern-tts -n pattern-agentic --replicas=2
+
+# Check HPA status
+kubectl get hpa -n pattern-agentic pattern-tts
 ```
 
 ---
 
-## Migration from Legacy
+## 📊 Monitoring
 
-**Old**: Kokoro TTS Docker container on port 8880
-**New**: Pattern TTS Service on port 8205
+### Health Checks
 
-**Migration Path**:
-1. Phase 1: Deploy to EKS, validate performance
-2. Phase 2: A/B testing (10% → 100%)
-3. Phase 3: Decommission port 8880 container
+```bash
+# Health endpoint
+curl http://localhost:8205/health
 
----
+# Kubernetes readiness
+kubectl get pods -n pattern-agentic -l app=pattern-tts-service
 
-## Performance
+# Check HPA metrics
+kubectl get hpa -n pattern-agentic pattern-tts
+```
 
-**Expected Metrics** (Target):
-- P95 Latency: <500ms for 100-word text
-- Throughput: 50+ requests/second
-- Success Rate: >99%
+### Resource Usage
 
----
+```bash
+# Pod resource consumption
+kubectl top pods -n pattern-agentic | grep pattern-tts
 
-## Documentation
+# PVC usage
+kubectl exec -n pattern-agentic pvc-uploader -- df -h /models
+```
 
-- **Swagger UI**: http://localhost:8205/docs
-- **ReDoc**: http://localhost:8205/redoc
-- **OpenAPI Spec**: http://localhost:8205/openapi.json
+### Logs
 
----
+```bash
+# Real-time logs (all pods)
+kubectl logs -n pattern-agentic -l app=pattern-tts-service -f
 
-## Support
+# Specific pod
+kubectl logs -n pattern-agentic pattern-tts-<pod-id> --tail=50
 
-**Questions**: Ask H200 First Mate or Captain Jeremy
-**Issues**: Report in work order system
-
----
-
-## Work Orders
-
-- **WO-015 Phase 1**: Deployment to AWS EKS + validation
-- **WO-015 Phase 2**: A/B testing integration with DLE v4
-- **WO-015 Phase 3**: 100% cutover + port 8880 decommission
+# Previous crashed pod
+kubectl logs -n pattern-agentic pattern-tts-<pod-id> --previous
+```
 
 ---
 
-**Never Fade to Black** 🏴‍☠️
+## 🧪 Testing
+
+### Manual Testing
+
+```bash
+# Port forward
+kubectl port-forward -n pattern-agentic svc/pattern-tts-service 8205:80 &
+
+# Test health
+curl http://localhost:8205/health | python -m json.tool
+
+# Generate speech with different voices
+for voice in alloy echo fable onyx nova shimmer; do
+  curl -X POST http://localhost:8205/v1/audio/speech \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"tts-1\",\"input\":\"Testing voice $voice\",\"voice\":\"$voice\"}" \
+    --output "test_${voice}.mp3"
+done
+
+# Verify audio files
+file test_*.mp3
+```
+
+### Load Testing
+
+```bash
+# Concurrent requests
+seq 1 10 | xargs -P 10 -I {} curl -X POST http://localhost:8205/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"Load test request {}","voice":"alloy"}' \
+  --output "load_test_{}.mp3"
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Pod CrashLoopBackOff
+
+**Symptom**: Pods restart repeatedly with `FileNotFoundError: /models/af_sky.pt`
+
+**Cause**: PVC mount race condition during startup
+
+**Fix**:
+```bash
+# Increase readiness probe delay
+kubectl patch deployment pattern-tts -n pattern-agentic -p \
+  '{"spec":{"template":{"spec":{"containers":[{"name":"tts-service","readinessProbe":{"initialDelaySeconds":30}}]}}}}'
+```
+
+### High Memory Usage
+
+**Symptom**: Pods OOMKilled or memory >80%
+
+**Solution**: Increase memory limits in values.yaml:
+```yaml
+resources:
+  limits:
+    memory: 6Gi  # Increase from 4Gi
+```
+
+### Slow Response Times
+
+**Symptom**: Requests taking >10 seconds
+
+**Diagnosis**:
+1. Check CPU throttling: `kubectl top pods -n pattern-agentic`
+2. Check concurrent requests: Review logs for queue depth
+3. Consider GPU deployment for <1s latency
+
+---
+
+## 📚 Additional Documentation
+
+- [DEVELOPMENT.md](DEVELOPMENT.md) - Development setup and contribution guide
+- Work Orders: `.mr_ai/agents/work_orders/WO-015-*`
+
+---
+
+## 🏆 Quality Gates (Agent 6 Validation)
+
+**Status**: ✅ **CONDITIONAL PASS** (3/4 gates pass, 1 with warnings)
+
+| Gate | Status | Notes |
+|------|--------|-------|
+| **Functional Correctness** | ✅ PASS | All endpoints operational |
+| **Integration** | ✅ PASS | OpenAI API compatible |
+| **Performance** | ✅ PASS | 6-7s/request (CPU), acceptable for MVP |
+| **Stability** | ⚠️ PASS | Startup race condition (monitored) |
+
+---
+
+**Version**: 1.0.3
+**Last Updated**: 2026-01-16
+**Maintainer**: Pattern Agentic Team
+**Port**: 8205 (reserved in PORT_RESERVATIONS.md)

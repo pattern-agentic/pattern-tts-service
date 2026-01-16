@@ -1,0 +1,20 @@
+apiVersion: v2
+name: pattern-tts
+description: Pattern TTS Service - OpenAI-compatible Text-to-Speech using Kokoro
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - tts
+  - text-to-speech
+  - kokoro
+  - openai-compatible
+  - audio
+  - pattern-agentic
+maintainers:
+  - name: Pattern Agentic Team
+    email: team@patternagentic.dev
+home: https://github.com/pattern-agentic/pattern-tts-service
+sources:
+  - https://github.com/pattern-agentic/pattern-infra
+  - https://github.com/pattern-agentic/pattern-tts-service

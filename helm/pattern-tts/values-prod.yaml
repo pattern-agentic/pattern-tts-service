@@ -1,0 +1,52 @@
+# Pattern TTS - Production Environment Values
+
+global:
+  environment: prod
+  namespace: pattern-agentic
+
+tts:
+  replicas: 3
+
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "4Gi"
+    limits:
+      cpu: "4000m"
+      memory: "8Gi"
+
+  env:
+    - name: TTS_ENVIRONMENT
+      value: "prod"
+    - name: TTS_LOG_LEVEL
+      value: "INFO"
+    - name: TTS_PORT
+      value: "8205"
+    - name: TTS_HOST
+      value: "0.0.0.0"
+    - name: TTS_MODEL_PATH
+      value: "/models/kokoro-v1.0"
+    - name: USE_GPU
+      value: "false"
+    - name: TTS_MAX_TEXT_LENGTH
+      value: "5000"
+    - name: TTS_TEMP_DIR
+      value: "/tmp/tts"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+secrets:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s

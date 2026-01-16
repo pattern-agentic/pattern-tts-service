@@ -1,0 +1,132 @@
+{{- if .Values.tts.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pattern-tts.fullname" . }}
+  namespace: {{ include "pattern-tts.namespace" . }}
+  labels:
+    {{- include "pattern-tts.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.tts.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pattern-tts.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pattern-tts.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "pattern-tts.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: tts-service
+        image: {{ include "pattern-tts.image" . }}
+        imagePullPolicy: {{ .Values.imageRegistry.pullPolicy }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.tts.service.targetPort }}
+          protocol: TCP
+        env:
+        {{- range .Values.tts.env }}
+        - name: {{ .name }}
+          value: {{ .value | quote }}
+        {{- end }}
+        {{- if .Values.secrets.enabled }}
+        - name: TTS_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secrets.apiKey.secretName }}
+              key: {{ .Values.secrets.apiKey.secretKey }}
+        {{- end }}
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: tts-temp
+          mountPath: /tmp/tts
+        - name: models
+          mountPath: /models
+        resources:
+          {{- toYaml .Values.tts.resources | nindent 10 }}
+        {{- if .Values.tts.healthCheck.enabled }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.tts.healthCheck.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.tts.healthCheck.initialDelaySeconds }}
+          periodSeconds: {{ .Values.tts.healthCheck.periodSeconds }}
+          timeoutSeconds: {{ .Values.tts.healthCheck.timeoutSeconds }}
+          successThreshold: {{ .Values.tts.healthCheck.successThreshold }}
+          failureThreshold: {{ .Values.tts.healthCheck.failureThreshold }}
+        {{- end }}
+        {{- if .Values.tts.readinessCheck.enabled }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.tts.readinessCheck.path }}
+            port: http
+          initialDelaySeconds: {{ .Values.tts.readinessCheck.initialDelaySeconds }}
+          periodSeconds: {{ .Values.tts.readinessCheck.periodSeconds }}
+          timeoutSeconds: {{ .Values.tts.readinessCheck.timeoutSeconds }}
+          successThreshold: {{ .Values.tts.readinessCheck.successThreshold }}
+          failureThreshold: {{ .Values.tts.readinessCheck.failureThreshold }}
+        {{- end }}
+      {{- if and .Values.persistence.enabled .Values.persistence.modelDownload.enabled }}
+      initContainers:
+      - name: download-models
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "Checking for Kokoro models in /models..."
+
+          # Check if models already exist (for pod restarts)
+          if [ -f "/models/kokoro-v0_19.pth" ] && [ -f "/models/voices.json" ]; then
+            echo "Models already exist, skipping download"
+            exit 0
+          fi
+
+          echo "Downloading Kokoro models..."
+          cd /models
+          wget -q {{ .Values.persistence.modelDownload.source }}/kokoro-v0_19.pth
+          wget -q {{ .Values.persistence.modelDownload.source }}/voices.json
+
+          echo "Model download complete"
+          ls -lh /models/
+        volumeMounts:
+        - name: models
+          mountPath: /models
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      {{- end }}
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "pattern-tts.fullname" . }}-config
+      - name: tmp
+        emptyDir: {}
+      - name: tts-temp
+        emptyDir: {}
+      - name: models
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "pattern-tts.fullname" . }}-models
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+{{- end }}

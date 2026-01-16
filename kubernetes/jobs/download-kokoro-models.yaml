@@ -1,0 +1,87 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: download-kokoro-models
+  namespace: pattern-agentic
+  labels:
+    app: pattern-tts
+    component: model-downloader
+spec:
+  template:
+    metadata:
+      labels:
+        app: pattern-tts
+        component: model-downloader
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: download-models
+        image: python:3.11-slim
+        command:
+          - /bin/bash
+          - -c
+          - |
+            set -ex
+            echo "Installing kokoro package..."
+            pip install --no-cache-dir kokoro-onnx==0.2.0
+
+            echo "Downloading Kokoro models to /models..."
+            python3 << 'PYEOF'
+            import kokoro
+            import os
+
+            # Download models (triggers automatic download)
+            print("Initializing Kokoro to trigger model download...")
+            tts = kokoro.generate("Test", voice="af_sky", speed=1.0, lang="en-us")
+
+            # Models download to ~/.kokoro by default
+            # Copy to /models for persistence
+            import shutil
+            source = os.path.expanduser("~/.kokoro")
+            dest = "/models"
+
+            print(f"Copying models from {source} to {dest}...")
+            if os.path.exists(source):
+                for item in os.listdir(source):
+                    s = os.path.join(source, item)
+                    d = os.path.join(dest, item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(s, d)
+                print("Models copied successfully!")
+
+                # List final contents
+                print("\nFinal /models directory contents:")
+                for root, dirs, files in os.walk(dest):
+                    level = root.replace(dest, '').count(os.sep)
+                    indent = ' ' * 2 * level
+                    print(f'{indent}{os.path.basename(root)}/')
+                    subindent = ' ' * 2 * (level + 1)
+                    for file in files:
+                        print(f'{subindent}{file}')
+            else:
+                print("ERROR: ~/.kokoro directory not found!")
+                exit(1)
+            PYEOF
+
+            echo "Model download complete!"
+        volumeMounts:
+        - name: models
+          mountPath: /models
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+      volumes:
+      - name: models
+        persistentVolumeClaim:
+          claimName: pattern-tts-models
+  backoffLimit: 3
