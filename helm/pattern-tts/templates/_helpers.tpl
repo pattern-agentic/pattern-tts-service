@@ -55,20 +55,9 @@ Service account name
 */}}
 {{- define "pattern-tts.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default "tts-service" .Values.serviceAccount.name }}
+{{- default "pattern-tts-service" .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
-
-{{/*
-Image repository URL helper
-*/}}
-{{- define "pattern-tts.imageRepository" -}}
-{{- if .Values.imageRegistry.url }}
-{{- printf "%s/%s" .Values.imageRegistry.url .Values.tts.image.repository }}
-{{- else }}
-{{- .Values.tts.image.repository }}
 {{- end }}
 {{- end }}
 
@@ -76,8 +65,7 @@ Image repository URL helper
 Full image name
 */}}
 {{- define "pattern-tts.image" -}}
-{{- $repo := include "pattern-tts.imageRepository" . }}
-{{- printf "%s:%s" $repo .Values.tts.image.tag }}
+{{- printf "%s:%s" .Values.image.repository .Values.image.tag }}
 {{- end }}
 
 {{/*
@@ -88,8 +76,10 @@ Namespace
 {{- end }}
 
 {{/*
-Environment
+Helper to convert .Values.config to ConfigMap data with PA_TTS_ prefix
 */}}
-{{- define "pattern-tts.environment" -}}
-{{- default "dev" .Values.global.environment }}
-{{- end }}
+{{- define "pattern-tts.configmap.data" -}}
+{{- range $key, $val := .Values.config -}}
+{{- printf "PA_TTS_%s: %s\n" $key ($val | toString | quote) }}
+{{- end -}}
+{{- end -}}

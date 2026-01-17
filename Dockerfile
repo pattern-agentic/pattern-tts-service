@@ -31,10 +31,9 @@ WORKDIR /build
 # Copy dependency files
 COPY pyproject.toml ./
 
-# Install poetry and dependencies
-RUN pip install --no-cache-dir poetry==1.8.0 && \
-    poetry config virtualenvs.create false && \
-    poetry install --no-dev --no-root --no-interaction
+# Install uv and dependencies
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN uv pip install --system --no-cache -r pyproject.toml
 
 # Download Kokoro model and voice packs
 # This happens during build time to avoid runtime downloads
